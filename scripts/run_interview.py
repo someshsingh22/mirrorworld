@@ -53,6 +53,7 @@ def run_interactive_interview(config):
         "max_steps": config.agent.max_steps,
         "qna_history": list(config.initial_state.qna_history),
         "plan": config.initial_state.plan,
+        "target_task": str(config.initial_state.target_task),
         "persona_estimate": str(config.initial_state.persona_estimate),
         "max_history": config.agent.max_history,
         "use_two_step": planning_enabled,
@@ -82,6 +83,9 @@ def run_interactive_interview(config):
         if verbosity and result.get("persona_estimate"):
             print("\n[Current Persona Estimate]")
             print(result["persona_estimate"])
+            if result.get("target_task"):
+                print("\n[Current Target Task]")
+                print(result["target_task"])
 
         if result["steps_completed"] >= config.agent.max_steps:
             break
@@ -91,6 +95,9 @@ def run_interactive_interview(config):
     print(f"Total questions asked: {result['steps_completed']}")
     print("\nFinal Persona Estimate:")
     print(result["persona_estimate"])
+    if result.get("target_task"):
+        print("\nFinal Target Task:")
+        print(result["target_task"])
 
 
 def main():

@@ -10,6 +10,7 @@ from src.prompts.templates import (
     PERSONA_UPDATE_PROMPT,
     PLAN_GENERATION_PROMPT,
     QUESTION_GENERATION_PROMPT,
+    TARGET_TASK_PROMPT,
 )
 
 
@@ -43,6 +44,7 @@ def generate_plan(state: AgentState, model: AzureChatOpenAI) -> dict:
         steps_completed=state["steps_completed"],
         max_steps=state["max_steps"],
         qna_context=qna_context,
+        target_task=state.get("target_task", "") or "Not set",
         persona_estimate=state["persona_estimate"],
     )
 
@@ -81,6 +83,7 @@ def generate_question(state: AgentState, model: AzureChatOpenAI) -> dict:
         max_steps=state["max_steps"],
         qna_context=qna_context,
         plan=state.get("plan", "No strategic plan yet"),
+        target_task=state.get("target_task", "") or "Not set",
         persona_estimate=state["persona_estimate"],
     )
 
@@ -139,9 +142,24 @@ def process_response(state: AgentState, model: AzureChatOpenAI) -> dict:
     if not updated_persona:
         updated_persona = state["persona_estimate"]
 
+    # Derive target task once, when missing
+    target_task_value = state.get("target_task", "")
+    if not target_task_value:
+        tt_prompt = TARGET_TASK_PROMPT.format(
+            persona_estimate=updated_persona,
+            qna_context=qna_context if qna_context else "No previous questions yet",
+        )
+        tt_response = model.invoke([{"role": "user", "content": tt_prompt}])
+        target_task_value = tt_response.content.strip()
+        if target_task_value.startswith("```"):
+            lines = target_task_value.split("\n")
+            target_task_value = "\n".join(lines[1:-1]) if len(lines) > 2 else target_task_value
+            target_task_value = target_task_value.replace("```", "").strip()
+
     return {
         "qna_history": updated_history,
         "persona_estimate": updated_persona,
+        "target_task": target_task_value,
         "steps_completed": state["steps_completed"] + 1,
         "user_response": None,
         "current_question": None,

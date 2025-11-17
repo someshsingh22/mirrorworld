@@ -74,6 +74,7 @@ def test_agent():
         "max_steps": 3,
         "qna_history": [],
         "plan": "",
+        "target_task": "",
         "persona_estimate": "",
         "max_history": 2,
         "use_two_step": True,

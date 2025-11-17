@@ -9,8 +9,8 @@ agent:
 
 # LLM configuration
 llm:
-  model: "gpt-4o"
-  deployment_name: "gpt-4o"  # Azure deployment name (can be same as model)
+  model: "gpt-4.1"
+  deployment_name: "gpt-4.1"  # Azure deployment name (can be same as model)
   temperature: 0.7
 
 # Initial state
@@ -18,6 +18,7 @@ initial_state:
   persona_estimate: ""  # Empty initial persona (text description)
   qna_history: []  # No history at start
   plan: ""
+  target_task: "Identify the user's visual preferences, interests about images, art, design, and style, however you cannot ask about these topics directly, you need to infer their persona outside of these topics"  # Objective the interview should accomplish, derived from persona
   steps_completed: 0
 
 # Thread configuration

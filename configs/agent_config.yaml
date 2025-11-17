@@ -18,6 +18,7 @@ initial_state:
   persona_estimate: ""  # Empty initial persona (text description)
   qna_history: []  # No history at start
   plan: ""
+  target_task: "Identify the user's visual preferences, interests about images, art, design, and style, however you cannot ask about these topics directly, you need to infer their persona outside of these topics"  # Objective the interview should accomplish, derived from persona
   steps_completed: 0
 
 # Thread configuration
