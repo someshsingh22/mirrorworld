@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from omegaconf import OmegaConf
 
-from src.models.agent import build_interview_agent
+from src.models.agent import InterviewSessionManager
 from src.utils.llm import create_azure_llm
 
 
@@ -133,7 +133,7 @@ model = create_azure_llm(
     temperature=config.llm.temperature,
     deployment_name=config.llm.get("deployment_name"),
 )
-agent = build_interview_agent(model)
+session_manager = InterviewSessionManager(model=model, config=config)
 
 app = FastAPI(title="MirrorWorld Interview API", version="0.1.0")
 
@@ -145,28 +145,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-def build_initial_state(initial_persona: str) -> Dict[str, Any]:
-    """Construct the initial agent state given an initial persona.
-
-    Args:
-        initial_persona: Persona estimate text to seed the interview with.
-
-    Returns:
-        Dictionary matching AgentState structure for the first invoke.
-    """
-
-    return {
-        "steps_completed": config.initial_state.steps_completed,
-        "max_steps": config.agent.max_steps,
-        "qna_history": list(config.initial_state.qna_history),
-        "plan": config.initial_state.plan,
-        "target_task": str(config.initial_state.target_task),
-        "persona_estimate": initial_persona,
-        "max_history": config.agent.max_history,
-        "use_two_step": config.agent.get("planning", False),
-    }
 
 
 @app.get("/health")
@@ -532,10 +510,7 @@ async def start_session(payload: Dict[str, Any]) -> Dict[str, Any]:
     personas[username] = initial_persona
     save_user_personas(personas)
 
-    thread_id = f"web-{username}"
-
-    initial_state = build_initial_state(initial_persona)
-    result = agent.invoke(initial_state, {"configurable": {"thread_id": thread_id}})
+    result = session_manager.start_session(username=username, initial_persona=initial_persona)
 
     log_interaction(
         username=username,
@@ -551,7 +526,7 @@ async def start_session(payload: Dict[str, Any]) -> Dict[str, Any]:
         "steps_completed": result.get("steps_completed", 0),
         "max_steps": config.agent.max_steps,
         "qna_history": result.get("qna_history", []),
-        "completed": False,
+        "completed": bool(result.get("completed", False)),
     }
 
 
@@ -574,14 +549,13 @@ async def answer_question(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not user_response:
         raise HTTPException(status_code=400, detail="user_response is required")
 
-    thread_id = f"web-{username}"
+    try:
+        result = session_manager.answer_question(username=username, user_response=user_response)
+    except KeyError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    result = agent.invoke(
-        {"user_response": user_response}, {"configurable": {"thread_id": thread_id}}
-    )
-
-    completed = bool(result.get("steps_completed", 0) >= config.agent.max_steps) or not result.get(
-        "current_question"
+    completed = bool(result.get("completed")) or bool(
+        result.get("steps_completed", 0) >= config.agent.max_steps
     )
 
     qna_history = result.get("qna_history") or []

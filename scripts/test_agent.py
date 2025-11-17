@@ -5,7 +5,7 @@ from unittest.mock import Mock
 from omegaconf import OmegaConf
 
 from src.core.schemas import InterviewQuestion, StrategicPlan
-from src.models.agent import build_interview_agent
+from src.models.agent import ParallelInterviewSession, build_interview_agent
 
 
 class MockLLM:
@@ -101,6 +101,29 @@ def test_agent():
     print(f"✓ Final persona:\n{result['persona_estimate']}")
 
     print("\n=== All Tests Passed! ===\n")
+
+    # Test the parallel session wrapper
+    print("\n=== Testing ParallelInterviewSession with Mock LLM ===\n")
+    session = ParallelInterviewSession(
+        model=mock_llm,
+        max_steps=3,
+        max_history=2,
+        initial_persona="",
+        initial_plan="",
+        initial_target_task="",
+        use_two_step=True,
+    )
+    session_result = session.start()
+    print(f"✓ Parallel session first question: {session_result.get('current_question')}")
+
+    session_result = session.answer("yes")
+    print(f"✓ Parallel session steps after first answer: {session_result['steps_completed']}")
+
+    session_result = session.answer("no")
+    print(f"✓ Parallel session steps after second answer: {session_result['steps_completed']}")
+    session.close()
+
+    print("\n=== Parallel Session Tests Completed ===\n")
 
 
 if __name__ == "__main__":

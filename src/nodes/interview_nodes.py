@@ -1,6 +1,6 @@
 """Node functions for the interview agent graph."""
 
-from typing import Literal
+from typing import Any, Dict, Literal
 
 from langchain_openai import AzureChatOpenAI
 
@@ -12,6 +12,76 @@ from src.prompts.templates import (
     QUESTION_GENERATION_PROMPT,
     TARGET_TASK_PROMPT,
 )
+
+
+def update_persona_and_target_task(state: AgentState, model: AzureChatOpenAI) -> Dict[str, str]:
+    """Update persona estimate and target task based on Q&A history.
+
+    This helper isolates the persona update logic so it can be reused both in the
+    LangGraph node (``process_response``) and in alternative orchestration flows
+    (for example, background persona update threads).
+
+    Args:
+        state: Current agent state. Must contain ``persona_estimate``, ``qna_history``,
+            ``max_history``, and ``target_task`` fields.
+        model: LLM instance used to perform the updates.
+
+    Returns:
+        A dictionary containing updated values for ``persona_estimate`` and
+        ``target_task``. If the model returns an empty persona, the previous
+        persona from the state is preserved. The target task is only derived
+        when it is missing in the input state.
+    """
+    qna_context = "\n".join(
+        [
+            f"Q: {qa['question']}\nA: {qa['answer']}"
+            for qa in state["qna_history"][-state["max_history"] :]
+        ]
+    )
+
+    prompt = PERSONA_UPDATE_PROMPT.format(
+        qna_context=qna_context,
+        current_estimate=state["persona_estimate"]
+        if state["persona_estimate"]
+        else "No persona information yet.",
+    )
+
+    # Use regular LLM call for text output
+    response = model.invoke([{"role": "user", "content": prompt}])
+
+    # Get the text persona description
+    updated_persona = response.content.strip()
+
+    # Remove markdown code blocks if present (though shouldn't be needed for text)
+    if updated_persona.startswith("```"):
+        lines = updated_persona.split("\n")
+        updated_persona = "\n".join(lines[1:-1]) if len(lines) > 2 else updated_persona
+        updated_persona = updated_persona.replace("```", "").strip()
+
+    # If empty, keep previous estimate
+    if not updated_persona:
+        updated_persona = state["persona_estimate"]
+
+    # Derive target task only when missing
+    target_task_value = state.get("target_task", "")
+    if not target_task_value:
+        tt_prompt = TARGET_TASK_PROMPT.format(
+            persona_estimate=updated_persona,
+            qna_context=qna_context if qna_context else "No previous questions yet",
+        )
+        tt_response = model.invoke([{"role": "user", "content": tt_prompt}])
+        target_task_value = tt_response.content.strip()
+        if target_task_value.startswith("```"):
+            lines = target_task_value.split("\n")
+            target_task_value = (
+                "\n".join(lines[1:-1]) if len(lines) > 2 else target_task_value
+            )
+            target_task_value = target_task_value.replace("```", "").strip()
+
+    return {
+        "persona_estimate": updated_persona,
+        "target_task": target_task_value,
+    }
 
 
 def generate_plan(state: AgentState, model: AzureChatOpenAI) -> dict:
@@ -108,58 +178,23 @@ def process_response(state: AgentState, model: AzureChatOpenAI) -> dict:
         return {}
 
     # Add to history
-    new_qna = {"question": state["current_question"], "answer": state["user_response"]}
+    new_qna: Dict[str, Any] = {
+        "question": state["current_question"],
+        "answer": state["user_response"],
+    }
     updated_history = state["qna_history"] + [new_qna]
 
-    # Update persona estimate
-    qna_context = "\n".join(
-        [
-            f"Q: {qa['question']}\nA: {qa['answer']}"
-            for qa in updated_history[-state["max_history"] :]
-        ]
-    )
-
-    prompt = PERSONA_UPDATE_PROMPT.format(
-        qna_context=qna_context,
-        current_estimate=state["persona_estimate"]
-        if state["persona_estimate"]
-        else "No persona information yet.",
-    )
-
-    # Use regular LLM call for text output
-    response = model.invoke([{"role": "user", "content": prompt}])
-
-    # Get the text persona description
-    updated_persona = response.content.strip()
-
-    # Remove markdown code blocks if present (though shouldn't be needed for text)
-    if updated_persona.startswith("```"):
-        lines = updated_persona.split("\n")
-        updated_persona = "\n".join(lines[1:-1]) if len(lines) > 2 else updated_persona
-        updated_persona = updated_persona.replace("```", "").strip()
-
-    # If empty, keep previous estimate
-    if not updated_persona:
-        updated_persona = state["persona_estimate"]
-
-    # Derive target task once, when missing
-    target_task_value = state.get("target_task", "")
-    if not target_task_value:
-        tt_prompt = TARGET_TASK_PROMPT.format(
-            persona_estimate=updated_persona,
-            qna_context=qna_context if qna_context else "No previous questions yet",
-        )
-        tt_response = model.invoke([{"role": "user", "content": tt_prompt}])
-        target_task_value = tt_response.content.strip()
-        if target_task_value.startswith("```"):
-            lines = target_task_value.split("\n")
-            target_task_value = "\n".join(lines[1:-1]) if len(lines) > 2 else target_task_value
-            target_task_value = target_task_value.replace("```", "").strip()
+    # Compute updated persona and target task using shared helper
+    updated_state: AgentState = {
+        **state,
+        "qna_history": updated_history,
+    }
+    persona_task_update = update_persona_and_target_task(updated_state, model)
 
     return {
         "qna_history": updated_history,
-        "persona_estimate": updated_persona,
-        "target_task": target_task_value,
+        "persona_estimate": persona_task_update["persona_estimate"],
+        "target_task": persona_task_update["target_task"],
         "steps_completed": state["steps_completed"] + 1,
         "user_response": None,
         "current_question": None,

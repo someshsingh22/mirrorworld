@@ -10,7 +10,7 @@ from typing import Any, Dict
 
 from omegaconf import OmegaConf
 
-from src.models.agent import build_interview_agent
+from src.models.agent import ParallelInterviewSession
 from src.utils.llm import create_azure_llm
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -83,29 +83,22 @@ def run_interactive_interview(config):
         deployment_name=config.llm.get("deployment_name"),
     )
 
-    # Build agent
-    agent = build_interview_agent(model)
-
-    # Thread configuration (always use fresh UUID for session)
-    thread_config = {"configurable": {"thread_id": run_id}}
-
     # Get planning flag
     planning_enabled = config.agent.get("planning", False)
 
     # Get verbosity flag
     verbosity = config.agent.get("verbosity", False)
 
-    # Initialize state
-    initial_state = {
-        "steps_completed": config.initial_state.steps_completed,
-        "max_steps": config.agent.max_steps,
-        "qna_history": list(config.initial_state.qna_history),
-        "plan": config.initial_state.plan,
-        "target_task": str(config.initial_state.target_task),
-        "persona_estimate": str(config.initial_state.persona_estimate),
-        "max_history": config.agent.max_history,
-        "use_two_step": planning_enabled,
-    }
+    # Create a parallel session that will handle persona updates in the background
+    session = ParallelInterviewSession(
+        model=model,
+        max_steps=config.agent.max_steps,
+        max_history=config.agent.max_history,
+        initial_persona=str(config.initial_state.persona_estimate),
+        initial_plan=config.initial_state.plan,
+        initial_target_task=str(config.initial_state.target_task),
+        use_two_step=planning_enabled,
+    )
 
     log_event("session_start")
 
@@ -113,7 +106,7 @@ def run_interactive_interview(config):
     print("=== Interview Agent Started ===")
     print(f"Max questions: {config.agent.max_steps}\n")
 
-    result = agent.invoke(initial_state, thread_config)
+    result = session.start()
     log_event("agent_state", state=result)
 
     # Interview loop
@@ -137,7 +130,7 @@ def run_interactive_interview(config):
             continue
 
         log_event("user_response", step=question_number, response=user_input)
-        result = agent.invoke({"user_response": user_input}, thread_config)
+        result = session.answer(user_input)
         log_event("agent_state", state=result)
 
         # Show persona estimate if verbosity is enabled
