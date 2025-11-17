@@ -161,6 +161,13 @@ async def index() -> HTMLResponse:
             .question { margin-top: 1rem; padding: 0.75rem 1rem; background: #f9fafb; border-radius: 0.5rem; border: 1px solid #e5e7eb; }
             .meta { font-size: 0.8rem; color: #6b7280; margin-top: 0.25rem; }
             .status { margin-top: 0.75rem; font-size: 0.85rem; color: #4b5563; }
+            .button-row { display: flex; align-items: center; }
+            .flag-right { margin-left: auto; }
+            .question-wrapper { position: relative; }
+            .question-dimmed { opacity: 0.6; }
+            .loading-overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(249,250,251,0.8); pointer-events: all; }
+            .loading-spinner { width: 24px; height: 24px; border-radius: 999px; border: 3px solid #d1d5db; border-top-color: #111827; animation: spin 0.8s linear infinite; }
+            @keyframes spin { to { transform: rotate(360deg); } }
         </style>
     </head>
     <body>
@@ -182,24 +189,25 @@ async def index() -> HTMLResponse:
             </div>
 
             <div class="section" id="questionSection" style="display:none;">
-                <h2>Interview</h2>
-                <div id="questionBox" class="question"></div>
-                <div class="meta" id="progress"></div>
-                <div class="section">
-                    <button id="yesBtn" class="primary">Yes</button>
-                    <button id="noBtn" class="secondary">No</button>
-                    <button id="flagBtn" class="danger">Flag</button>
+                <div id="questionWrapper" class="question-wrapper">
+                    <h2>Interview</h2>
+                    <div id="questionBox" class="question"></div>
+                    <div class="meta" id="progress"></div>
+                    <div class="section button-row">
+                        <button id="yesBtn" class="primary">Yes</button>
+                        <button id="noBtn" class="secondary">No</button>
+                        <button id="flagBtn" class="danger flag-right">Flag</button>
+                    </div>
+                    <div class="section">
+                        <label for="freeText">Or answer with text</label>
+                        <textarea id="freeText" placeholder="Type your answer here..."></textarea>
+                        <button id="submitText" class="primary">Submit text answer</button>
+                    </div>
+                    <div id="status" class="status"></div>
+                    <div id="loadingOverlay" class="loading-overlay">
+                        <div class="loading-spinner"></div>
+                    </div>
                 </div>
-                <div class="section">
-                    <label for="freeText">Or answer with text</label>
-                    <textarea id="freeText" placeholder="Type your answer here..."></textarea>
-                    <button id="submitText" class="primary">Submit text answer</button>
-                </div>
-                <div class="section">
-                    <h2>Current persona estimate</h2>
-                    <textarea id="personaEstimate" readonly></textarea>
-                </div>
-                <div id="status" class="status"></div>
             </div>
         </div>
 
@@ -213,8 +221,9 @@ async def index() -> HTMLResponse:
             const questionSection = document.getElementById("questionSection");
             const questionBox = document.getElementById("questionBox");
             const progressEl = document.getElementById("progress");
-            const personaEstimateEl = document.getElementById("personaEstimate");
             const statusEl = document.getElementById("status");
+            const questionWrapper = document.getElementById("questionWrapper");
+            const loadingOverlay = document.getElementById("loadingOverlay");
 
             const yesBtn = document.getElementById("yesBtn");
             const noBtn = document.getElementById("noBtn");
@@ -223,6 +232,19 @@ async def index() -> HTMLResponse:
             const submitText = document.getElementById("submitText");
 
             let currentUsername = null;
+
+            function setLoading(isLoading) {
+                if (!questionWrapper || !loadingOverlay) {
+                    return;
+                }
+                if (isLoading) {
+                    questionWrapper.classList.add("question-dimmed");
+                    loadingOverlay.style.display = "flex";
+                } else {
+                    questionWrapper.classList.remove("question-dimmed");
+                    loadingOverlay.style.display = "none";
+                }
+            }
 
             async function loadPersona() {
                 const username = usernameInput.value.trim();
@@ -252,18 +274,25 @@ async def index() -> HTMLResponse:
                     return;
                 }
                 const persona = personaTextarea.value;
-                const response = await fetch("/api/session/start", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username: currentUsername, initial_persona: persona })
-                });
-                if (!response.ok) {
-                    alert("Failed to start interview.");
-                    return;
-                }
-                const data = await response.json();
                 questionSection.style.display = "block";
-                updateQuestionUI(data);
+                setLoading(true);
+                try {
+                    const response = await fetch("/api/session/start", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: currentUsername, initial_persona: persona })
+                    });
+                    if (!response.ok) {
+                        alert("Failed to start interview.");
+                        return;
+                    }
+                    const data = await response.json();
+                    updateQuestionUI(data);
+                } catch (error) {
+                    alert("Failed to start interview.");
+                } finally {
+                    setLoading(false);
+                }
             }
 
             async function sendAnswer(answerType, textAnswer) {
@@ -282,24 +311,30 @@ async def index() -> HTMLResponse:
                     return;
                 }
 
-                const response = await fetch("/api/session/answer", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username: currentUsername, user_response: userResponse })
-                });
-                if (!response.ok) {
+                setLoading(true);
+                try {
+                    const response = await fetch("/api/session/answer", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: currentUsername, user_response: userResponse })
+                    });
+                    if (!response.ok) {
+                        alert("Failed to send answer.");
+                        return;
+                    }
+                    const data = await response.json();
+                    updateQuestionUI(data);
+                } catch (error) {
                     alert("Failed to send answer.");
-                    return;
+                } finally {
+                    setLoading(false);
                 }
-                const data = await response.json();
-                updateQuestionUI(data);
             }
 
             function updateQuestionUI(data) {
                 if (data.completed) {
                     questionBox.textContent = "Interview complete.";
                     progressEl.textContent = `Questions asked: ${data.steps_completed} / ${data.max_steps}`;
-                    personaEstimateEl.value = data.persona_estimate || "";
                     statusEl.textContent = "You have reached the end of the interview.";
                     yesBtn.disabled = true;
                     noBtn.disabled = true;
@@ -311,7 +346,6 @@ async def index() -> HTMLResponse:
 
                 questionBox.textContent = data.current_question || "Waiting for next question...";
                 progressEl.textContent = `Question ${data.steps_completed + 1} of ${data.max_steps}`;
-                personaEstimateEl.value = data.persona_estimate || "";
                 statusEl.textContent = "";
             }
 
