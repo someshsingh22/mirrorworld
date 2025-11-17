@@ -90,11 +90,15 @@ def sanitize_username(username: str) -> str:
         Safe username containing only alphanumerics, dash, and underscore.
     """
 
-    safe = "".join(character for character in username if character.isalnum() or character in {"-", "_"})
+    safe = "".join(
+        character for character in username if character.isalnum() or character in {"-", "_"}
+    )
     return safe or "user"
 
 
-def log_interaction(username: str, question: str | None, response: str | None, persona: str | None) -> None:
+def log_interaction(
+    username: str, question: str | None, response: str | None, persona: str | None
+) -> None:
     """Append an interaction record to a JSONL log file.
 
     Each line contains username, timestamp, question, response, and persona estimate.
@@ -572,7 +576,9 @@ async def answer_question(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     thread_id = f"web-{username}"
 
-    result = agent.invoke({"user_response": user_response}, {"configurable": {"thread_id": thread_id}})
+    result = agent.invoke(
+        {"user_response": user_response}, {"configurable": {"thread_id": thread_id}}
+    )
 
     completed = bool(result.get("steps_completed", 0) >= config.agent.max_steps) or not result.get(
         "current_question"

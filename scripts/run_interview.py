@@ -56,9 +56,9 @@ def run_interactive_interview(config):
     run_id = str(uuid.uuid4())
     log_path = LOG_DIR / f"{run_id}.jsonl"
     config_payload: Dict[str, Any] = OmegaConf.to_container(config, resolve=True)
-    metadata_payload: Dict[str, Any] = OmegaConf.to_container(
-        config.get("metadata", {}), resolve=True
-    ) or {}
+    metadata_payload: Dict[str, Any] = (
+        OmegaConf.to_container(config.get("metadata", {}), resolve=True) or {}
+    )
     if not isinstance(metadata_payload, dict):
         metadata_payload = {}
     git_commit = _get_git_commit()
