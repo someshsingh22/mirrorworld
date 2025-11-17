@@ -167,6 +167,16 @@ async def index() -> HTMLResponse:
             .question-dimmed { opacity: 0.6; }
             .loading-overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(249,250,251,0.8); pointer-events: all; }
             .loading-spinner { width: 24px; height: 24px; border-radius: 999px; border: 3px solid #d1d5db; border-top-color: #111827; animation: spin 0.8s linear infinite; }
+            .interview-layout { display: flex; flex-direction: column; gap: 1.5rem; }
+            .interview-left { flex: 1; }
+            .interview-right { flex: 2; }
+            .persona-box { padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: #f9fafb; font-size: 0.9rem; white-space: pre-wrap; min-height: 80px; }
+            .history-section { margin-top: 1.25rem; }
+            .history-list { max-height: 260px; overflow-y: auto; padding: 0.5rem 0; border-top: 1px solid #e5e7eb; margin-top: 0.5rem; }
+            .history-item { padding: 0.4rem 0; border-bottom: 1px solid #f3f4f6; font-size: 0.85rem; }
+            .history-q { font-weight: 600; }
+            .history-a { margin-top: 0.15rem; color: #4b5563; }
+            @media (min-width: 900px) { .interview-layout { flex-direction: row; align-items: flex-start; } .interview-left { max-width: 260px; } }
             @keyframes spin { to { transform: rotate(360deg); } }
         </style>
     </head>
@@ -189,23 +199,35 @@ async def index() -> HTMLResponse:
             </div>
 
             <div class="section" id="questionSection" style="display:none;">
-                <div id="questionWrapper" class="question-wrapper">
-                    <h2>Interview</h2>
-                    <div id="questionBox" class="question"></div>
-                    <div class="meta" id="progress"></div>
-                    <div class="section button-row">
-                        <button id="yesBtn" class="primary">Yes</button>
-                        <button id="noBtn" class="secondary">No</button>
-                        <button id="flagBtn" class="danger flag-right">Flag</button>
+                <div class="interview-layout">
+                    <div class="interview-left">
+                        <h2>Initial persona</h2>
+                        <div id="personaLocked" class="persona-box"></div>
                     </div>
-                    <div class="section">
-                        <label for="freeText">Or answer with text</label>
-                        <textarea id="freeText" placeholder="Type your answer here..."></textarea>
-                        <button id="submitText" class="primary">Submit text answer</button>
-                    </div>
-                    <div id="status" class="status"></div>
-                    <div id="loadingOverlay" class="loading-overlay">
-                        <div class="loading-spinner"></div>
+                    <div class="interview-right">
+                        <div id="questionWrapper" class="question-wrapper">
+                            <h2>Interview</h2>
+                            <div id="questionBox" class="question"></div>
+                            <div class="meta" id="progress"></div>
+                            <div class="section button-row">
+                                <button id="yesBtn" class="primary">Yes</button>
+                                <button id="noBtn" class="secondary">No</button>
+                                <button id="flagBtn" class="danger flag-right">Flag</button>
+                            </div>
+                            <div class="section">
+                                <label for="freeText">Or answer with text</label>
+                                <textarea id="freeText" placeholder="Type your answer here..."></textarea>
+                                <button id="submitText" class="primary">Submit text answer</button>
+                            </div>
+                            <div class="section history-section">
+                                <h3 style="font-size: 0.9rem; margin-bottom: 0.25rem;">History</h3>
+                                <div id="historyList" class="history-list"></div>
+                            </div>
+                            <div id="status" class="status"></div>
+                            <div id="loadingOverlay" class="loading-overlay">
+                                <div class="loading-spinner"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -224,6 +246,8 @@ async def index() -> HTMLResponse:
             const statusEl = document.getElementById("status");
             const questionWrapper = document.getElementById("questionWrapper");
             const loadingOverlay = document.getElementById("loadingOverlay");
+            const personaLocked = document.getElementById("personaLocked");
+            const historyList = document.getElementById("historyList");
 
             const yesBtn = document.getElementById("yesBtn");
             const noBtn = document.getElementById("noBtn");
@@ -268,12 +292,46 @@ async def index() -> HTMLResponse:
                 personaSection.style.display = "block";
             }
 
+            function renderHistory(history) {
+                if (!historyList) {
+                    return;
+                }
+                historyList.innerHTML = "";
+                if (!Array.isArray(history) || history.length === 0) {
+                    const emptyRow = document.createElement("div");
+                    emptyRow.className = "history-item";
+                    emptyRow.textContent = "No questions asked yet.";
+                    historyList.appendChild(emptyRow);
+                    return;
+                }
+                history.forEach((item, index) => {
+                    const row = document.createElement("div");
+                    row.className = "history-item";
+
+                    const qEl = document.createElement("div");
+                    qEl.className = "history-q";
+                    qEl.textContent = `Q${index + 1}: ${item.question || ""}`;
+
+                    const aEl = document.createElement("div");
+                    aEl.className = "history-a";
+                    aEl.textContent = `A${index + 1}: ${item.answer || ""}`;
+
+                    row.appendChild(qEl);
+                    row.appendChild(aEl);
+                    historyList.appendChild(row);
+                });
+            }
+
             async function startInterview() {
                 if (!currentUsername) {
                     alert("Please load a username first.");
                     return;
                 }
                 const persona = personaTextarea.value;
+                if (personaLocked) {
+                    personaLocked.textContent = persona || "No initial persona provided.";
+                }
+                personaSection.style.display = "none";
                 questionSection.style.display = "block";
                 setLoading(true);
                 try {
@@ -341,12 +399,18 @@ async def index() -> HTMLResponse:
                     flagBtn.disabled = true;
                     submitText.disabled = true;
                     freeText.disabled = true;
+                    if (data.qna_history) {
+                        renderHistory(data.qna_history);
+                    }
                     return;
                 }
 
                 questionBox.textContent = data.current_question || "Waiting for next question...";
                 progressEl.textContent = `Question ${data.steps_completed + 1} of ${data.max_steps}`;
                 statusEl.textContent = "";
+                if (data.qna_history) {
+                    renderHistory(data.qna_history);
+                }
             }
 
             loadPersonaBtn.addEventListener("click", loadPersona);
@@ -419,6 +483,7 @@ async def start_session(payload: Dict[str, Any]) -> Dict[str, Any]:
         "persona_estimate": result.get("persona_estimate", initial_persona),
         "steps_completed": result.get("steps_completed", 0),
         "max_steps": config.agent.max_steps,
+        "qna_history": result.get("qna_history", []),
         "completed": False,
     }
 
@@ -456,5 +521,6 @@ async def answer_question(payload: Dict[str, Any]) -> Dict[str, Any]:
         "persona_estimate": result.get("persona_estimate"),
         "steps_completed": result.get("steps_completed", 0),
         "max_steps": config.agent.max_steps,
+        "qna_history": result.get("qna_history", []),
         "completed": completed,
     }
