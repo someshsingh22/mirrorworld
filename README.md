@@ -138,26 +138,31 @@ Edit `configs/agent_config.yaml` to customize:
 
 ```yaml
 agent:
-  max_steps: 20              # Total questions to ask
-  max_history: 5             # Context window size
+  max_steps: 10              # Total questions to ask
+  max_history: 10            # Context window size in Q&A history
   planning: true             # Enable plan-then-question workflow
-  verbosity: true            # Print persona estimate after each answer
+  verbosity: true            # Print persona estimate after each turn
 
 llm:
-  model: "gpt-4o"
-  deployment_name: "gpt-4o"  # Azure deployment name
+  model: "gpt-4.1"
+  deployment_name: "gpt-4.1" # Azure deployment name
   temperature: 0.7
 
 initial_state:
   persona_estimate: ""       # Empty initial persona
-  qna_history: []
+  qna_history: []            # No history at start
   plan: ""
-  target_task: ""            # Optional predefined objective
+  target_task: "Identify the user's visual preferences..."  # Sample objective
   steps_completed: 0
 
-thread:
-  thread_id: "user-123"      # Conversation persistence ID
+metadata:
+  campaign: "default"        # Copied into logs without modification
+  persona_goal: "visual_inference"
 ```
+
+Every interactive run now writes a full trajectory JSONL file to `logs/{uuid}.jsonl`.
+Each record includes the run UUID, metadata block, resolved config, git commit hash,
+questions, user responses, and agent state snapshots for reproducibility.
 
 ## Code Formatting
 

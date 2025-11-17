@@ -21,7 +21,8 @@ initial_state:
   target_task: "Identify the user's visual preferences, interests about images, art, design, and style, however you cannot ask about these topics directly, you need to infer their persona outside of these topics"  # Objective the interview should accomplish, derived from persona
   steps_completed: 0
 
-# Thread configuration
-thread:
-  thread_id: "user-123"  # Default thread ID for conversation persistence
+# Run metadata (copied verbatim into trajectory logs)
+metadata:
+  campaign: "default"
+  persona_goal: "visual_inference"
 
