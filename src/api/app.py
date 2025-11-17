@@ -146,7 +146,7 @@ async def index() -> HTMLResponse:
         <title>MirrorWorld Interview</title>
         <style>
             body { font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 2rem; background: #f5f5f7; color: #111827; }
-            .container { max-width: 720px; margin: 0 auto; background: #ffffff; padding: 1.5rem 2rem; border-radius: 0.75rem; box-shadow: 0 10px 25px rgba(15,23,42,0.08); }
+            .container { max-width: 960px; margin: 0 auto; background: #ffffff; padding: 1.5rem 2rem; border-radius: 0.75rem; box-shadow: 0 10px 25px rgba(15,23,42,0.08); }
             h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
             h2 { font-size: 1.1rem; margin-top: 1.5rem; margin-bottom: 0.5rem; }
             label { font-weight: 600; display: block; margin-bottom: 0.25rem; }
@@ -167,16 +167,24 @@ async def index() -> HTMLResponse:
             .question-dimmed { opacity: 0.6; }
             .loading-overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(249,250,251,0.8); pointer-events: all; }
             .loading-spinner { width: 24px; height: 24px; border-radius: 999px; border: 3px solid #d1d5db; border-top-color: #111827; animation: spin 0.8s linear infinite; }
-            .interview-layout { display: flex; flex-direction: column; gap: 1.5rem; }
-            .interview-left { flex: 1; }
-            .interview-right { flex: 2; }
+            .interview-layout { display: block; }
+            .interview-left,
+            .interview-right { display: none; }
+            .interview-center { margin-top: 1rem; }
             .persona-box { padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: #f9fafb; font-size: 0.9rem; white-space: pre-wrap; min-height: 80px; }
             .history-section { margin-top: 1.25rem; }
             .history-list { max-height: 260px; overflow-y: auto; padding: 0.5rem 0; border-top: 1px solid #e5e7eb; margin-top: 0.5rem; }
             .history-item { padding: 0.4rem 0; border-bottom: 1px solid #f3f4f6; font-size: 0.85rem; }
             .history-q { font-weight: 600; }
             .history-a { margin-top: 0.15rem; color: #4b5563; }
-            @media (min-width: 900px) { .interview-layout { flex-direction: row; align-items: flex-start; } .interview-left { max-width: 260px; } }
+            @media (min-width: 900px) {
+                .interview-layout { display: flex; gap: 1.5rem; align-items: flex-start; }
+                .interview-left,
+                .interview-right { display: block; }
+                .interview-left { max-width: 260px; flex: 0 0 260px; }
+                .interview-center { flex: 2; margin-top: 0; }
+                .interview-right { max-width: 260px; flex: 0 0 260px; }
+            }
             @keyframes spin { to { transform: rotate(360deg); } }
         </style>
     </head>
@@ -201,10 +209,10 @@ async def index() -> HTMLResponse:
             <div class="section" id="questionSection" style="display:none;">
                 <div class="interview-layout">
                     <div class="interview-left">
-                        <h2>Initial persona</h2>
+                        <h2>Profile</h2>
                         <div id="personaLocked" class="persona-box"></div>
                     </div>
-                    <div class="interview-right">
+                    <div class="interview-center">
                         <div id="questionWrapper" class="question-wrapper">
                             <h2>Interview</h2>
                             <div id="questionBox" class="question"></div>
@@ -219,14 +227,16 @@ async def index() -> HTMLResponse:
                                 <textarea id="freeText" placeholder="Type your answer here..."></textarea>
                                 <button id="submitText" class="primary">Submit text answer</button>
                             </div>
-                            <div class="section history-section">
-                                <h3 style="font-size: 0.9rem; margin-bottom: 0.25rem;">History</h3>
-                                <div id="historyList" class="history-list"></div>
-                            </div>
                             <div id="status" class="status"></div>
                             <div id="loadingOverlay" class="loading-overlay">
                                 <div class="loading-spinner"></div>
                             </div>
+                        </div>
+                    </div>
+                    <div class="interview-right">
+                        <div class="section history-section">
+                            <h2 style="font-size: 1rem; margin-bottom: 0.25rem;">History</h2>
+                            <div id="historyList" class="history-list"></div>
                         </div>
                     </div>
                 </div>
