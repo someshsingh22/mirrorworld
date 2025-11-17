@@ -10,8 +10,6 @@ dependencies = [
     "langchain-openai>=0.2.0",
     "omegaconf>=2.3.0",
     "python-dotenv>=1.0.0",
-    "fastapi>=0.115.0",
-    "uvicorn>=0.30.0",
 ]
 
 [build-system]
@@ -49,4 +47,8 @@ dev = [
     "black>=25.11.0",
     "isort>=7.0.0",
     "ruff>=0.14.5",
+]
+demo = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
 ]
