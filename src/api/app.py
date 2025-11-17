@@ -7,6 +7,8 @@ The app exposes:
 
 from __future__ import annotations
 
+import json
+from datetime import datetime
 from json import JSONDecodeError
 from pathlib import Path
 from typing import Any, Dict
@@ -24,6 +26,7 @@ APP_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_DIR.parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "agent_config.yaml"
 USER_PERSONAS_PATH = PROJECT_ROOT / "MirrorWorldL" / "user_personas.json"
+LOG_DIR = PROJECT_ROOT / "logs"
 
 
 def load_config(config_path: Path = DEFAULT_CONFIG_PATH) -> Any:
@@ -75,6 +78,49 @@ def save_user_personas(personas: Dict[str, str]) -> None:
     # Use OmegaConf for simple, pretty-printed JSON-like text
     conf = OmegaConf.create(personas)
     USER_PERSONAS_PATH.write_text(OmegaConf.to_yaml(conf), encoding="utf-8")
+
+
+def sanitize_username(username: str) -> str:
+    """Return a filesystem-safe username for log filenames.
+
+    Args:
+        username: Raw username from the client.
+
+    Returns:
+        Safe username containing only alphanumerics, dash, and underscore.
+    """
+
+    safe = "".join(character for character in username if character.isalnum() or character in {"-", "_"})
+    return safe or "user"
+
+
+def log_interaction(username: str, question: str | None, response: str | None, persona: str | None) -> None:
+    """Append an interaction record to a JSONL log file.
+
+    Each line contains username, timestamp, question, response, and persona estimate.
+
+    Args:
+        username: Username for this session.
+        question: Question text that was asked.
+        response: User's response to the question.
+        persona: Current persona estimate after processing the response.
+    """
+
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    safe_username = sanitize_username(username)
+    log_path = LOG_DIR / f"web_{safe_username}.jsonl"
+
+    payload: Dict[str, Any] = {
+        "username": username,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "question": question,
+        "response": response,
+        "persona_estimate": persona,
+    }
+
+    with log_path.open("a", encoding="utf-8") as log_file:
+        json.dump(payload, log_file, ensure_ascii=False)
+        log_file.write("\n")
 
 
 config = load_config()
@@ -487,6 +533,13 @@ async def start_session(payload: Dict[str, Any]) -> Dict[str, Any]:
     initial_state = build_initial_state(initial_persona)
     result = agent.invoke(initial_state, {"configurable": {"thread_id": thread_id}})
 
+    log_interaction(
+        username=username,
+        question=result.get("current_question"),
+        response=None,
+        persona=result.get("persona_estimate", initial_persona),
+    )
+
     return {
         "username": username,
         "current_question": result.get("current_question"),
@@ -523,6 +576,18 @@ async def answer_question(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     completed = bool(result.get("steps_completed", 0) >= config.agent.max_steps) or not result.get(
         "current_question"
+    )
+
+    qna_history = result.get("qna_history") or []
+    last_entry = qna_history[-1] if qna_history else None
+    logged_question = last_entry.get("question") if last_entry else None
+    logged_response = last_entry.get("answer") if last_entry else user_response
+
+    log_interaction(
+        username=username,
+        question=logged_question,
+        response=logged_response,
+        persona=result.get("persona_estimate"),
     )
 
     return {
