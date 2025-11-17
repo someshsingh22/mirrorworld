@@ -1,0 +1,26 @@
+# Test Interview Agent Configuration (Short version)
+
+# Agent behavior
+agent:
+  max_steps: 3  # Only 3 questions for testing
+  max_history: 2  # Number of previous Q&As to include in context
+  planning: true  # Enable strategic planning before questions (plan-then-question workflow)
+  verbosity: true  # Show persona_estimate after each question (true) or only at end (false)
+
+# LLM configuration
+llm:
+  model: "gpt-4o"
+  deployment_name: "gpt-4o"  # Azure deployment name (can be same as model)
+  temperature: 0.7
+
+# Initial state
+initial_state:
+  persona_estimate: ""  # Empty initial persona (text description)
+  qna_history: []  # No history at start
+  plan: ""
+  steps_completed: 0
+
+# Thread configuration
+thread:
+  thread_id: "test-session-001"  # Test thread ID
+

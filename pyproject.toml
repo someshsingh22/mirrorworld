@@ -1,0 +1,50 @@
+[project]
+name = "mirrorworld"
+version = "0.1.0"
+description = "LangGraph-based 20-question interview agent for building user personas"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "omegaconf>=2.3.0",
+    "python-dotenv>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]  # Allow long lines for prompt strings
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+combine-as-imports = true
+force-single-line = false
+split-on-trailing-comma = true
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["src"]
+
+[dependency-groups]
+dev = [
+    "black>=25.11.0",
+    "isort>=7.0.0",
+    "ruff>=0.14.5",
+]
