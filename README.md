@@ -41,15 +41,25 @@ AZURE_API_KEY=your-api-key-here
 AZURE_API_VERSION=2024-02-15-preview
 ```
 
-### 2. Install dependencies
+### 2. Install base dependencies
+
+This installs only the core CLI/agent dependencies:
 
 ```bash
 uv sync
 ```
 
+### 3. Install demo (FastAPI) dependencies
+
+To keep the web demo isolated from the main environment, FastAPI and uvicorn live in a separate `demo` dependency group:
+
+```bash
+uv sync --group demo
+```
+
 ## Usage
 
-### Run Interactive Interview
+### Run Interactive Interview (CLI)
 
 Full 20-question interview:
 
@@ -69,18 +79,57 @@ The agent will:
 - Show progress through the interview
 - Display the final persona at completion
 
-### Run Tests
+### Run Web Demo UI (FastAPI)
 
-Mock LLM test (no API required):
+After installing the demo dependencies:
 
 ```bash
-python scripts/test_agent.py
+uv sync --group demo
+uvicorn src.api.app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Real Azure API test (automated):
+Then open the browser at:
+
+```text
+http://localhost:8000/
+```
+
+The web demo will:
+- Ask for a username and load any stored initial persona from a local JSON file
+- Let the user edit the initial persona before starting
+- Run the K-question interview with buttons for **Yes**, **No**, **Flag**, and a text box + submit
+- Continuously display the current persona estimate as the interview progresses
+
+### cURL checks for the demo API
+
+Health check:
 
 ```bash
-python scripts/test_real_api.py
+curl http://localhost:8000/health
+```
+
+Initialize a session (loads stored or default persona for a username):
+
+```bash
+curl -X POST http://localhost:8000/api/session/init \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice"}'
+```
+
+Start an interview (after optionally editing the persona in the UI, you can also do it via API):
+
+```bash
+curl -X POST http://localhost:8000/api/session/start \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "initial_persona": "Initial persona text here"}'
+```
+
+Answer a question (using yes/no/flag or free text):
+
+```bash
+curl -X POST http://localhost:8000/api/session/answer \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "user_response": "yes"}'
 ```
 
 ## Configuration
@@ -145,9 +194,7 @@ ruff check src/ scripts/
 
 The agent uses:
 - **TypedDict** (`AgentState`) for graph state management
-- **Pydantic models** for structured outputs (questions and planning):
-  - `InterviewQuestion` - question with rationale
-  - `StrategicPlan` - focus areas and strategy
+- **Pydantic models** (`InterviewQuestion`, `StrategicPlan`) for structured outputs
 - **Flexible JSON** for persona estimates - no predefined schema, agent freely structures the persona
 - **OmegaConf** for configuration management
 - **Separate prompts module** for maintainability
@@ -156,7 +203,7 @@ The agent uses:
 
 ```mermaid
 START → process_response → [conditional]
-                              ├─→ generate_plan → generate_question → END (wait for user)
-                              ├─→ generate_question → END (wait for user)
-                              └─→ END (interview complete)
+                             ├─→ generate_plan → generate_question → END (wait for user)
+                             ├─→ generate_question → END (wait for user)
+                             └─→ END (interview complete)
 ```
